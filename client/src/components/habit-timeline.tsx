@@ -1,6 +1,7 @@
+
 import { Habit, Entry } from "@shared/schema";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfWeek } from "date-fns";
 import { CheckCircle2, Circle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
@@ -42,19 +43,25 @@ export default function HabitTimeline({ habits }: HabitTimelineProps) {
     return entries?.some(
       (entry) =>
         entry.habitId === habit.id &&
-        format(new Date(entry.completedAt), "yyyy-MM-dd") ===
-          format(date, "yyyy-MM-dd"),
+        format(new Date(entry.completedAt), "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
     );
   };
 
-  // Generate last 7 days starting from Monday
-  const today = new Date();
-  const monday = new Date(today);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7)); // Get last Monday
+  // Get the start of the current week (Monday)
+  const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
   
-  const dates = Array.from({ length: 7 }, (_, i) => {
-    return addDays(monday, i);
-  });
+  // Generate 7 days starting from Monday
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+
+  const frenchDays: { [key: string]: string } = {
+    'Mon': 'Lun',
+    'Tue': 'Mar',
+    'Wed': 'Mer',
+    'Thu': 'Jeu',
+    'Fri': 'Ven',
+    'Sat': 'Sam',
+    'Sun': 'Dim'
+  };
 
   return (
     <ScrollArea className="h-[400px] pr-4">
@@ -69,14 +76,7 @@ export default function HabitTimeline({ habits }: HabitTimelineProps) {
                   className="flex flex-col items-center"
                 >
                   <div className="text-xs text-muted-foreground">
-                    {format(date, "EEE")
-                      .replace("Mon", "Lun")
-                      .replace("Tue", "Mar")
-                      .replace("Wed", "Mer")
-                      .replace("Thu", "Jeu")
-                      .replace("Fri", "Ven")
-                      .replace("Sat", "Sam")
-                      .replace("Sun", "Dim")}
+                    {frenchDays[format(date, "EEE")]}
                   </div>
                   <button
                     onClick={() => toggleMutation.mutate({ habitId: habit.id, date })}
