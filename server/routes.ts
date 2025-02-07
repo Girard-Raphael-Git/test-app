@@ -116,24 +116,68 @@ export function registerRoutes(app: Express): Server {
     res.json(stats);
   });
 
+  app.get("/api/admin/notifications", isAdmin, async (req, res) => {
+    const notifications = await storage.getAllNotifications();
+    res.json(notifications);
+  });
+
+  app.get("/api/admin/settings", isAdmin, async (req, res) => {
+    const settings = await storage.getSystemSettings();
+    res.json(settings);
+  });
+
+  app.patch("/api/admin/settings", isAdmin, async (req, res) => {
+    const { telegramBotToken, enableNotifications, notificationInterval } = req.body;
+
+    // Validate settings
+    if (notificationInterval && notificationInterval < 30) {
+      return res.status(400).json({ message: "Notification interval must be at least 30 seconds" });
+    }
+
+    const settings = await storage.updateSystemSettings({
+      telegramBotToken,
+      enableNotifications,
+      notificationInterval,
+    });
+
+    // If telegram token is updated, recreate the telegram service
+    if (telegramBotToken) {
+      process.env.TELEGRAM_BOT_TOKEN = telegramBotToken;
+      // The telegram service will be recreated on next import
+    }
+
+    res.json(settings);
+  });
+
   const httpServer = createServer(app);
 
-  // Start notification checker
-  setInterval(async () => {
-    const notifications = await storage.getPendingNotifications();
-    for (const notification of notifications) {
-      const user = await storage.getUser(notification.userId);
-      if (user?.telegramId && telegramService) {
-        const sent = await telegramService.sendNotification(
-          user.telegramId,
-          notification.message,
-        );
-        if (sent) {
-          await storage.markNotificationSent(notification.id);
+  // Start notification checker with configurable interval
+  let notificationInterval: NodeJS.Timeout;
+
+  async function startNotificationChecker() {
+    const settings = await storage.getSystemSettings();
+    if (settings.enableNotifications) {
+      clearInterval(notificationInterval);
+      notificationInterval = setInterval(async () => {
+        const notifications = await storage.getPendingNotifications();
+        for (const notification of notifications) {
+          const user = await storage.getUser(notification.userId);
+          if (user?.telegramId && telegramService) {
+            const sent = await telegramService.sendNotification(
+              user.telegramId,
+              notification.message,
+            );
+            if (sent) {
+              await storage.markNotificationSent(notification.id);
+            }
+          }
         }
-      }
+      }, (settings.notificationInterval || 60) * 1000);
     }
-  }, 60000);
+  }
+
+  // Initial start
+  startNotificationChecker();
 
   return httpServer;
 }

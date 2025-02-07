@@ -43,6 +43,21 @@ export interface IStorage {
     totalHabits: number;
     totalEntries: number;
   }>;
+  getAllNotifications(): Promise<Notification[]>;
+  getSystemSettings(): Promise<{
+    telegramBotToken?: string;
+    enableNotifications: boolean;
+    notificationInterval: number;
+  }>;
+  updateSystemSettings(settings: {
+    telegramBotToken?: string;
+    enableNotifications?: boolean;
+    notificationInterval?: number;
+  }): Promise<{
+    telegramBotToken?: string;
+    enableNotifications: boolean;
+    notificationInterval: number;
+  }>;
 
   sessionStore: session.Store;
 }
@@ -53,6 +68,11 @@ export class MemStorage implements IStorage {
   private entries: Map<number, Entry>;
   private notifications: Map<number, Notification>;
   private currentId: number;
+  private settings: {
+    telegramBotToken?: string;
+    enableNotifications: boolean;
+    notificationInterval: number;
+  };
   sessionStore: session.Store;
 
   constructor() {
@@ -64,6 +84,10 @@ export class MemStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
+    this.settings = {
+      enableNotifications: true,
+      notificationInterval: 60,
+    };
 
     // Create default admin user
     this.createDefaultAdmin();
@@ -199,6 +223,22 @@ export class MemStorage implements IStorage {
       totalHabits: this.habits.size,
       totalEntries: this.entries.size,
     };
+  }
+  async getAllNotifications(): Promise<Notification[]> {
+    return Array.from(this.notifications.values());
+  }
+
+  async getSystemSettings() {
+    return this.settings;
+  }
+
+  async updateSystemSettings(updates: {
+    telegramBotToken?: string;
+    enableNotifications?: boolean;
+    notificationInterval?: number;
+  }) {
+    this.settings = { ...this.settings, ...updates };
+    return this.settings;
   }
 }
 
