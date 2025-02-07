@@ -1,10 +1,12 @@
-import { User, InsertUser, Habit, Entry, Notification } from "@shared/schema";
+import { users, habits, entries, notifications, type User, type InsertUser, type Habit, type Entry, type Notification } from "@shared/schema";
+import { db } from "./db";
+import { eq, sql } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 
-const MemoryStore = createMemoryStore(session);
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string) {
@@ -12,6 +14,8 @@ async function hashPassword(password: string) {
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
 }
+
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -62,171 +66,134 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private habits: Map<number, Habit>;
-  private entries: Map<number, Entry>;
-  private notifications: Map<number, Notification>;
-  private currentId: number;
-  private settings: {
-    telegramBotToken?: string;
-    enableNotifications: boolean;
-    notificationInterval: number;
-  };
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.habits = new Map();
-    this.entries = new Map();
-    this.notifications = new Map();
-    this.currentId = 1;
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000,
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     });
-    this.settings = {
-      enableNotifications: true,
-      notificationInterval: 60,
-    };
-
-    // Create default admin user
-    this.createDefaultAdmin();
-  }
-
-  private async createDefaultAdmin() {
-    const adminUser: User = {
-      id: this.currentId++,
-      username: "admin",
-      password: await hashPassword("admin123"),
-      isAdmin: true,
-      telegramId: null,
-    };
-    this.users.set(adminUser.id, adminUser);
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id, isAdmin: false, telegramId: null };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async updateUser(id: number, updates: Partial<User>): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) throw new Error("User not found");
-
-    const updated = { ...user, ...updates };
-    this.users.set(id, updated);
-
-    return updated;
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+    return user;
   }
 
   async createHabit(habit: Omit<Habit, "id" | "createdAt">): Promise<Habit> {
-    const id = this.currentId++;
-    const newHabit: Habit = {
-      ...habit,
-      id,
-      createdAt: new Date(),
-    };
-    this.habits.set(id, newHabit);
+    const [newHabit] = await db.insert(habits).values(habit).returning();
     return newHabit;
   }
 
   async getHabit(id: number): Promise<Habit | undefined> {
-    return this.habits.get(id);
+    const [habit] = await db.select().from(habits).where(eq(habits.id, id));
+    return habit;
   }
 
   async getUserHabits(userId: number): Promise<Habit[]> {
-    return Array.from(this.habits.values()).filter(
-      (habit) => habit.userId === userId,
-    );
+    return db.select().from(habits).where(eq(habits.userId, userId));
   }
 
   async updateHabit(id: number, updates: Partial<Habit>): Promise<Habit> {
-    const habit = this.habits.get(id);
-    if (!habit) throw new Error("Habit not found");
-    const updated = { ...habit, ...updates };
-    this.habits.set(id, updated);
-    return updated;
+    const [habit] = await db
+      .update(habits)
+      .set(updates)
+      .where(eq(habits.id, id))
+      .returning();
+    return habit;
   }
 
   async deleteHabit(id: number): Promise<void> {
-    this.habits.delete(id);
+    await db.delete(habits).where(eq(habits.id, id));
   }
 
   async createEntry(entry: Omit<Entry, "id" | "completedAt">): Promise<Entry> {
-    const id = this.currentId++;
-    const newEntry: Entry = {
-      ...entry,
-      id,
-      completedAt: new Date(),
-    };
-    this.entries.set(id, newEntry);
+    const [newEntry] = await db
+      .insert(entries)
+      .values({ ...entry, completedAt: new Date() })
+      .returning();
     return newEntry;
   }
 
   async getEntries(habitId: number): Promise<Entry[]> {
-    return Array.from(this.entries.values()).filter(
-      (entry) => entry.habitId === habitId,
-    );
+    return db.select().from(entries).where(eq(entries.habitId, habitId));
   }
 
   async getUserEntries(userId: number): Promise<Entry[]> {
-    return Array.from(this.entries.values()).filter(
-      (entry) => entry.userId === userId,
-    );
+    return db.select().from(entries).where(eq(entries.userId, userId));
   }
 
   async createNotification(
     notification: Omit<Notification, "id" | "createdAt">,
   ): Promise<Notification> {
-    const id = this.currentId++;
-    const newNotification: Notification = {
-      ...notification,
-      id,
-      createdAt: new Date(),
-    };
-    this.notifications.set(id, newNotification);
+    const [newNotification] = await db
+      .insert(notifications)
+      .values({ ...notification, createdAt: new Date() })
+      .returning();
     return newNotification;
   }
 
   async getPendingNotifications(): Promise<Notification[]> {
-    return Array.from(this.notifications.values()).filter(
-      (notification) => !notification.sent,
-    );
+    return db.select().from(notifications).where(eq(notifications.sent, false));
   }
 
   async markNotificationSent(id: number): Promise<void> {
-    const notification = this.notifications.get(id);
-    if (notification) {
-      this.notifications.set(id, { ...notification, sent: true });
-    }
+    await db
+      .update(notifications)
+      .set({ sent: true })
+      .where(eq(notifications.id, id));
   }
 
   async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return db.select().from(users);
   }
 
   async getSystemStats() {
+    const [users_count] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+    const [habits_count] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(habits);
+    const [entries_count] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(entries);
+
     return {
-      totalUsers: this.users.size,
-      totalHabits: this.habits.size,
-      totalEntries: this.entries.size,
+      totalUsers: users_count.count,
+      totalHabits: habits_count.count,
+      totalEntries: entries_count.count,
     };
   }
+
   async getAllNotifications(): Promise<Notification[]> {
-    return Array.from(this.notifications.values());
+    return db.select().from(notifications);
   }
+
+  private settings = {
+    enableNotifications: true,
+    notificationInterval: 60,
+  };
 
   async getSystemSettings() {
     return this.settings;
@@ -242,4 +209,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
