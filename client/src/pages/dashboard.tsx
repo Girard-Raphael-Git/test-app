@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Settings } from "lucide-react";
 import { Habit } from "@shared/schema";
 import HabitForm from "@/components/habit-form";
 import HabitTimeline from "@/components/habit-timeline";
 import HabitStats from "@/components/habit-stats";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -28,17 +29,27 @@ export default function Dashboard() {
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Welcome, {user?.username}!</h1>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Habit
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <HabitForm />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          {user?.isAdmin && (
+            <Link href="/admin">
+              <Button variant="outline">
+                <Settings className="w-4 h-4 mr-2" />
+                Admin Panel
+              </Button>
+            </Link>
+          )}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Habit
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <HabitForm />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {habits?.length === 0 ? (

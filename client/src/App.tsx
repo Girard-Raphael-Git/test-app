@@ -17,10 +17,10 @@ function Router() {
     <Switch>
       <Route path="/auth" component={AuthPage} />
       <ProtectedRoute path="/" component={Dashboard} />
-      <ProtectedRoute path="/admin" component={AdminDashboard} />
-      <ProtectedRoute path="/admin/users" component={AdminUsers} />
-      <ProtectedRoute path="/admin/notifications" component={AdminNotifications} />
-      <ProtectedRoute path="/admin/settings" component={AdminSettings} />
+      <ProtectedRoute path="/admin" component={AdminDashboard} requireAdmin />
+      <ProtectedRoute path="/admin/users" component={AdminUsers} requireAdmin />
+      <ProtectedRoute path="/admin/notifications" component={AdminNotifications} requireAdmin />
+      <ProtectedRoute path="/admin/settings" component={AdminSettings} requireAdmin />
       <Route component={NotFound} />
     </Switch>
   );
