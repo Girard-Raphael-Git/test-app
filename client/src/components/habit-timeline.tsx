@@ -1,8 +1,9 @@
 import { Habit, Entry } from "@shared/schema";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { CheckCircle2, Circle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiRequest } from "@/lib/queryClient";
 
 interface HabitTimelineProps {
   habits: Habit[];
@@ -46,12 +47,14 @@ export default function HabitTimeline({ habits }: HabitTimelineProps) {
     );
   };
 
-  // Generate last 7 days for timeline
+  // Generate last 7 days starting from Monday
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7)); // Get last Monday
+  
   const dates = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    return date;
-  }).reverse();
+    return addDays(monday, i);
+  });
 
   return (
     <ScrollArea className="h-[400px] pr-4">
