@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
-import { Loader2, Plus, Settings } from "lucide-react";
+import { Loader2, Plus, Settings, LogOut } from "lucide-react";
 import { Habit } from "@shared/schema";
 import HabitForm from "@/components/habit-form";
 import HabitTimeline from "@/components/habit-timeline";
@@ -11,7 +11,7 @@ import HabitStats from "@/components/habit-stats";
 import { Link } from "wouter";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   const { data: habits, isLoading } = useQuery<Habit[]>({
     queryKey: ["/api/habits"],
@@ -49,6 +49,14 @@ export default function Dashboard() {
               <HabitForm />
             </DialogContent>
           </Dialog>
+          <Button 
+            variant="outline" 
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
         </div>
       </div>
 
