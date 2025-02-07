@@ -1,8 +1,17 @@
 import { User, InsertUser, Habit, Entry, Notification } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
 
 const MemoryStore = createMemoryStore(session);
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -54,6 +63,20 @@ export class MemStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
+
+    // Create default admin user
+    this.createDefaultAdmin();
+  }
+
+  private async createDefaultAdmin() {
+    const adminUser: User = {
+      id: this.currentId++,
+      username: "admin",
+      password: await hashPassword("admin123"),
+      isAdmin: true,
+      telegramId: null,
+    };
+    this.users.set(adminUser.id, adminUser);
   }
 
   async getUser(id: number): Promise<User | undefined> {
