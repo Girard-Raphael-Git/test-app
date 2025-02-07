@@ -17,24 +17,25 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+  updateUser(id: number, updates: Partial<User>): Promise<User>;
+
   // Habits
   createHabit(habit: Omit<Habit, "id" | "createdAt">): Promise<Habit>;
   getHabit(id: number): Promise<Habit | undefined>;
   getUserHabits(userId: number): Promise<Habit[]>;
   updateHabit(id: number, habit: Partial<Habit>): Promise<Habit>;
   deleteHabit(id: number): Promise<void>;
-  
+
   // Entries
   createEntry(entry: Omit<Entry, "id" | "completedAt">): Promise<Entry>;
   getEntries(habitId: number): Promise<Entry[]>;
   getUserEntries(userId: number): Promise<Entry[]>;
-  
+
   // Notifications
   createNotification(notification: Omit<Notification, "id" | "createdAt">): Promise<Notification>;
   getPendingNotifications(): Promise<Notification[]>;
   markNotificationSent(id: number): Promise<void>;
-  
+
   // Admin
   getAllUsers(): Promise<User[]>;
   getSystemStats(): Promise<{
@@ -42,7 +43,7 @@ export interface IStorage {
     totalHabits: number;
     totalEntries: number;
   }>;
-  
+
   sessionStore: session.Store;
 }
 
@@ -94,6 +95,16 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id, isAdmin: false, telegramId: null };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUser(id: number, updates: Partial<User>): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+
+    const updated = { ...user, ...updates };
+    this.users.set(id, updated);
+
+    return updated;
   }
 
   async createHabit(habit: Omit<Habit, "id" | "createdAt">): Promise<Habit> {

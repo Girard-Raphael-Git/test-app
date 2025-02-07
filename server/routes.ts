@@ -18,12 +18,12 @@ export function registerRoutes(app: Express): Server {
   // Habit routes
   app.post("/api/habits", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
-    
+
     const parsed = insertHabitSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json(parsed.error);
     }
-    
+
     const habit = await storage.createHabit({
       ...parsed.data,
       userId: req.user.id,
@@ -60,12 +60,12 @@ export function registerRoutes(app: Express): Server {
   // Entry routes
   app.post("/api/entries", async (req, res) => {
     if (!req.user) return res.sendStatus(401);
-    
+
     const parsed = insertEntrySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json(parsed.error);
     }
-    
+
     const entry = await storage.createEntry({
       ...parsed.data,
       userId: req.user.id,
@@ -83,6 +83,32 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     const users = await storage.getAllUsers();
     res.json(users);
+  });
+
+  app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
+    const userId = parseInt(req.params.id);
+    const { isAdmin: newIsAdmin } = req.body;
+
+    if (typeof newIsAdmin !== "boolean") {
+      return res.status(400).json({ message: "Invalid role value" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updatedUser = await storage.updateUser(userId, { isAdmin: newIsAdmin });
+    res.json(updatedUser);
+
+    // Create notification for role change
+    await storage.createNotification({
+      userId,
+      type: "role_change",
+      message: `Your role has been ${newIsAdmin ? "upgraded to admin" : "changed to user"}`,
+      sent: false,
+      habitId: 0, // System notification
+    });
   });
 
   app.get("/api/admin/stats", isAdmin, async (req, res) => {
