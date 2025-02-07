@@ -1,5 +1,5 @@
 import { Habit, Entry } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CheckCircle2, Circle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
