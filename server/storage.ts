@@ -74,6 +74,19 @@ export class DatabaseStorage implements IStorage {
       pool,
       createTableIfMissing: true,
     });
+    // Create default admin user on startup
+    this.ensureAdminExists();
+  }
+
+  private async ensureAdminExists() {
+    const adminUser = await this.getUserByUsername("admin");
+    if (!adminUser) {
+      await db.insert(users).values({
+        username: "admin",
+        password: await hashPassword("admin123"),
+        isAdmin: true,
+      });
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
